@@ -21,6 +21,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -75,7 +76,7 @@ public class AuthController {
     }
 
 
-    @GetMapping("/info")
+    @GetMapping("/getInfo")
     public Result getUserInfo(){
         //从securityContextHolder上下文中获取认证信息
         Authentication authentication =SecurityContextHolder.getContext().getAuthentication();
@@ -83,8 +84,11 @@ public class AuthController {
             return Result.error().setMessage("认证信息为空");
         }
         User user = (User)authentication.getPrincipal();
-        List<String> list=userService.selectRoleName(user.getId());
-        Object[] array=list.toArray();
+        List<Permission> permissionList = user.getPermissionList();
+        Object[] array = permissionList.stream().filter(Objects::nonNull)
+                .map(Permission::getPermissionCode)
+                .toArray(String[]::new);
+
         UserInfoVO userInfoVo=new UserInfoVO(user.getId(),
                 user.getUsername(), user.getAvatar(),user.getNickname(),array);
         return Result.success(userInfoVo).setMessage("获取用户信息成功");
@@ -104,6 +108,29 @@ public class AuthController {
         permissionList.removeIf(permission -> permission == null || Objects.equals(permission.getPermissionType(), 2));
         //将permission_type为1的菜单生成树形结构
         List<RouteVO> routeVOList= RouteTreeUtils.buildRouteTree(permissionList,0);
+
+        System.out.println("构建的菜单：" + routeVOList);
         return Result.success(routeVOList).setMessage("获取菜单成功");
+    }
+
+
+    @PostMapping("/logout")
+    public Result logout(HttpServletRequest request,HttpServletResponse response){
+        String token=request.getHeader("token");
+        if(StrUtil.isEmpty(token)){
+            token=request.getParameter("token");
+        }
+        if(StrUtil.isEmpty(token)){
+            return Result.error().setMessage("token为空");
+        }
+
+        Authentication authentication =SecurityContextHolder.getContext().getAuthentication();
+        if(authentication!=null){
+            redisUtils.delete("token"+token);
+            SecurityContextLogoutHandler handler = new SecurityContextLogoutHandler();
+            handler.logout(request,response,authentication);
+            return Result.success().setMessage("登出成功");
+        }
+        return Result.success().setMessage("登出失败");
     }
 }

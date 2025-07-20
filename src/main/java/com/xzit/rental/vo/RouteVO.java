@@ -1,5 +1,6 @@
 package com.xzit.rental.vo;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -8,6 +9,7 @@ import java.util.List;
 
 
 @Data
+@JsonInclude(JsonInclude.Include.NON_EMPTY)
 public class RouteVO {
     private String path;
     private String name;
